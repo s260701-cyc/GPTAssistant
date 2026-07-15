@@ -25,6 +25,12 @@
 - 客服文字修飾：將文字改寫為自然、禮貌、親切且不新增資訊的客服回覆。
 - ChatGPT 控制：重新整理、開啟新對話、停止目前自動化。
 
+## GitHub / Streamlit Cloud 檢查
+
+- `runtime.txt` 固定 Streamlit Cloud 使用 Python 3.12，避免雲端使用未預期的 Python 版本。
+- `.github/workflows/ci.yml` 會在 push / pull request 時執行 `python -m compileall .` 與 `pytest -q`，若 GitHub 上的檔案真的有 SyntaxError，CI 會直接失敗並指出檔案與行號。
+- Playwright 控制 ChatGPT 仍建議在 Windows 本機執行；Streamlit Cloud 不適合互動式登入既有 Chrome session。
+
 ## 安裝
 
 ```powershell
@@ -46,6 +52,7 @@ streamlit run app.py
 
 ```powershell
 python -m compileall .
+pytest -q
 python - <<'PY'
 from services.roc_date_service import RocDateService
 svc = RocDateService()
