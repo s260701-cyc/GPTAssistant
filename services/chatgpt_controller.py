@@ -8,7 +8,22 @@ from typing import Awaitable, Callable, TypeVar
 
 from playwright.async_api import BrowserContext, Error, Page, TimeoutError, async_playwright
 
-from config import selectors, settings
+from config import selectors
+from config.settings import (
+    BROWSER_CHANNEL,
+    BROWSER_USER_DATA_DIR,
+    CHATGPT_URL,
+    HEADLESS,
+from playwright.async_api import BrowserContext, Page, TimeoutError, async_playwright
+
+from config import selectors
+from config.settings import (
+    BROWSER_USER_DATA_DIR,
+    CHATGPT_URL,
+    DEFAULT_TIMEOUT_MS,
+    RETRY_ATTEMPTS,
+    RETRY_DELAY_SECONDS,
+)
 
 T = TypeVar("T")
 LOGGER = logging.getLogger(__name__)
@@ -32,16 +47,16 @@ class ChatGPTController:
         """Start Chrome once using a persistent user data directory."""
         if self._context and self._page:
             return
-        settings.BROWSER_USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
-        LOGGER.info("Browser starting with persistent context: %s", settings.BROWSER_USER_DATA_DIR)
+        BROWSER_USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        LOGGER.info("Browser starting with persistent context: %s", BROWSER_USER_DATA_DIR)
         self._playwright = await async_playwright().start()
         launch_options = {
-            "user_data_dir": str(settings.BROWSER_USER_DATA_DIR),
-            "headless": settings.HEADLESS,
+            "user_data_dir": str(BROWSER_USER_DATA_DIR),
+            "headless": HEADLESS,
             "args": ["--start-maximized"],
         }
-        if settings.BROWSER_CHANNEL:
-            launch_options["channel"] = settings.BROWSER_CHANNEL
+        if BROWSER_CHANNEL:
+            launch_options["channel"] = BROWSER_CHANNEL
 
         try:
             self._context = await self._playwright.chromium.launch_persistent_context(
@@ -52,8 +67,14 @@ class ChatGPTController:
             await self._cleanup_after_failed_start()
             raise BrowserStartupError(self._browser_startup_help(exc)) from exc
 
+        self._context = await self._playwright.chromium.launch_persistent_context(
+            user_data_dir=str(BROWSER_USER_DATA_DIR),
+            channel="chrome",
+            headless=False,
+            args=["--start-maximized"],
+        )
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
-        await self._page.goto(settings.CHATGPT_URL, wait_until="domcontentloaded")
+        await self._page.goto(CHATGPT_URL, wait_until="domcontentloaded")
         LOGGER.info("Browser started")
 
     async def _cleanup_after_failed_start(self) -> None:
@@ -128,7 +149,7 @@ class ChatGPTController:
             await page.wait_for_timeout(1_000)
             for selector in selectors.STOP_BUTTONS:
                 try:
-                    await page.locator(selector).first.wait_for(state="hidden", timeout=settings.DEFAULT_TIMEOUT_MS)
+                    await page.locator(selector).first.wait_for(state="hidden", timeout=DEFAULT_TIMEOUT_MS)
                     return
                 except TimeoutError:
                     LOGGER.warning("Timeout waiting for stop button hidden: %s", selector)
@@ -177,13 +198,13 @@ class ChatGPTController:
 
     async def _retry(self, action: Callable[[], Awaitable[T]]) -> T:
         last_error: Exception | None = None
-        for attempt in range(1, settings.RETRY_ATTEMPTS + 1):
+        for attempt in range(1, RETRY_ATTEMPTS + 1):
             try:
                 return await action()
             except Exception as exc:
                 last_error = exc
-                LOGGER.warning("Retry %s/%s after error: %s", attempt, settings.RETRY_ATTEMPTS, exc)
-                await asyncio.sleep(settings.RETRY_DELAY_SECONDS)
+                LOGGER.warning("Retry %s/%s after error: %s", attempt, RETRY_ATTEMPTS, exc)
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
                 if self._page:
                     await self._page.reload(wait_until="domcontentloaded")
         raise RuntimeError("操作失敗，請確認 ChatGPT 頁面狀態。") from last_error
@@ -193,7 +214,7 @@ class ChatGPTController:
             for selector in selector_list:
                 locator = page.locator(selector).first
                 try:
-                    await locator.wait_for(state="visible", timeout=settings.DEFAULT_TIMEOUT_MS)
+                    await locator.wait_for(state="visible", timeout=DEFAULT_TIMEOUT_MS)
                     return locator
                 except TimeoutError:
                     LOGGER.warning("Selector timeout: %s", selector)
