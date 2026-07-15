@@ -53,6 +53,18 @@ streamlit run app.py
 ```powershell
 python -m compileall .
 pytest -q
+python - <<'PY'
+from services.roc_date_service import RocDateService
+svc = RocDateService()
+assert svc.convert('92/4/21') == '2003/4/21'
+assert svc.convert('92/04/21') == '2003/04/21'
+assert svc.convert('112/12/31') == '2023/12/31'
+assert svc.convert('92年4月21日') == '2003/4/21'
+assert svc.convert('92.4.21') == '2003/4/21'
+assert svc.convert('92-4-21') == '2003/4/21'
+assert svc.convert('92*4*21') == '2003/4/21'
+print('ROC date tests passed')
+PY
 ```
 
 Playwright 功能需要 Windows 桌面環境、Google Chrome、有效 ChatGPT 登入狀態與網路連線。
