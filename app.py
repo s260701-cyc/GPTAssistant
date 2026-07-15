@@ -8,6 +8,7 @@ import streamlit as st
 
 from api.handlers import address_service, polish_service, roc_date_service
 from services.chatgpt_controller import BrowserStartupError, controller
+from services.chatgpt_controller import controller
 from services.roc_date_service import RocDateError
 from utils.async_runner import runner
 from utils.logging_config import setup_logging
@@ -47,6 +48,8 @@ with st.container(border=True):
                 st.info(runner.run(address_service.complete(address)))
         except Exception as exc:
             show_automation_error("地址補全", exc)
+            LOGGER.exception("Address completion failed")
+            st.error(f"地址補全失敗：{exc}")
 
 with st.container(border=True):
     st.header("客服文字修飾")
@@ -57,6 +60,8 @@ with st.container(border=True):
                 st.info(runner.run(polish_service.polish(text)))
         except Exception as exc:
             show_automation_error("文字修飾", exc)
+            LOGGER.exception("Polish failed")
+            st.error(f"文字修飾失敗：{exc}")
 
 with st.container(border=True):
     st.header("ChatGPT 控制")
@@ -79,3 +84,11 @@ with st.container(border=True):
             st.warning("已停止目前自動化任務，Chrome 仍保持開啟。")
         except Exception as exc:
             show_automation_error("停止自動化", exc)
+        runner.run(controller.refresh())
+        st.success("已重新整理 ChatGPT。")
+    if col2.button("開啟新對話", use_container_width=True):
+        runner.run(controller.new_chat())
+        st.success("已開啟新對話。")
+    if col3.button("停止自動化", use_container_width=True):
+        runner.run(controller.stop())
+        st.warning("已停止目前自動化任務，Chrome 仍保持開啟。")

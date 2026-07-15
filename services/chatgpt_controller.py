@@ -14,6 +14,12 @@ from config.settings import (
     BROWSER_USER_DATA_DIR,
     CHATGPT_URL,
     HEADLESS,
+from playwright.async_api import BrowserContext, Page, TimeoutError, async_playwright
+
+from config import selectors
+from config.settings import (
+    BROWSER_USER_DATA_DIR,
+    CHATGPT_URL,
     DEFAULT_TIMEOUT_MS,
     RETRY_ATTEMPTS,
     RETRY_DELAY_SECONDS,
@@ -61,6 +67,12 @@ class ChatGPTController:
             await self._cleanup_after_failed_start()
             raise BrowserStartupError(self._browser_startup_help(exc)) from exc
 
+        self._context = await self._playwright.chromium.launch_persistent_context(
+            user_data_dir=str(BROWSER_USER_DATA_DIR),
+            channel="chrome",
+            headless=False,
+            args=["--start-maximized"],
+        )
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
         await self._page.goto(CHATGPT_URL, wait_until="domcontentloaded")
         LOGGER.info("Browser started")
