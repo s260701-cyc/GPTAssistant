@@ -28,7 +28,7 @@
 ## GitHub / Streamlit Cloud 檢查
 
 - `runtime.txt` 固定 Streamlit Cloud 使用 Python 3.12，避免雲端使用未預期的 Python 版本。
-- `.github/workflows/ci.yml` 會在 push / pull request 時執行 `python scripts/verify_python.py` 與 `pytest -q`，若 GitHub 上的檔案真的有 SyntaxError，CI 會直接失敗並指出檔案與行號。
+- `.github/workflows/ci.yml` 會在 push / pull request 時執行 `python -m compileall .` 與 `pytest -q`，若 GitHub 上的檔案真的有 SyntaxError，CI 會直接失敗並指出檔案與行號。
 - Playwright 控制 ChatGPT 仍建議在 Windows 本機執行；Streamlit Cloud 不適合互動式登入既有 Chrome session。
 
 ## 安裝
@@ -51,8 +51,20 @@ streamlit run app.py
 ## 測試方式
 
 ```powershell
-python scripts/verify_python.py
+python -m compileall .
 pytest -q
+python - <<'PY'
+from services.roc_date_service import RocDateService
+svc = RocDateService()
+assert svc.convert('92/4/21') == '2003/4/21'
+assert svc.convert('92/04/21') == '2003/04/21'
+assert svc.convert('112/12/31') == '2023/12/31'
+assert svc.convert('92年4月21日') == '2003/4/21'
+assert svc.convert('92.4.21') == '2003/4/21'
+assert svc.convert('92-4-21') == '2003/4/21'
+assert svc.convert('92*4*21') == '2003/4/21'
+print('ROC date tests passed')
+PY
 ```
 
 Playwright 功能需要 Windows 桌面環境、Google Chrome、有效 ChatGPT 登入狀態與網路連線。

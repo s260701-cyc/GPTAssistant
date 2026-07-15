@@ -23,7 +23,7 @@ jobs:
           pip install pytest
 
       - name: Compile Python files
-        run: python scripts/verify_python.py
+        run: python -m compileall .
 
       - name: Run unit tests
         run: pytest -q
