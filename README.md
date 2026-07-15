@@ -62,6 +62,14 @@ PY
 
 Playwright 功能需要 Windows 桌面環境、Google Chrome、有效 ChatGPT 登入狀態與網路連線。
 
+若看到 `Chromium distribution 'chrome' is not found`，代表目前環境沒有 Google Chrome。請在 Windows 本機安裝 Google Chrome，或執行 `playwright install chrome`。本專案目標是 Windows 本機自動化；Streamlit Cloud/Linux 通常不適合互動式登入 ChatGPT。
+
+進階環境變數：
+
+- `CHATGPT_BROWSER_CHANNEL=chrome`：指定使用 Google Chrome。
+- `CHATGPT_BROWSER_CHANNEL=`：不指定 channel，改用 Playwright bundled Chromium。
+- `PLAYWRIGHT_HEADLESS=true`：使用 headless 模式；首次登入 ChatGPT 不建議使用。
+
 ## 維護注意事項
 
 ChatGPT 網頁可能改版。所有 selector 集中於 `config/selectors.py`，優先使用 ARIA role、label、文字內容與 fallback selector，並搭配 timeout、retry、reload 與重新取得 locator。

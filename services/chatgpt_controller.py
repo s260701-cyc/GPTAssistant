@@ -6,6 +6,14 @@ import asyncio
 import logging
 from typing import Awaitable, Callable, TypeVar
 
+from playwright.async_api import BrowserContext, Error, Page, TimeoutError, async_playwright
+
+from config import selectors
+from config.settings import (
+    BROWSER_CHANNEL,
+    BROWSER_USER_DATA_DIR,
+    CHATGPT_URL,
+    HEADLESS,
 from playwright.async_api import BrowserContext, Page, TimeoutError, async_playwright
 
 from config import selectors
@@ -19,6 +27,10 @@ from config.settings import (
 
 T = TypeVar("T")
 LOGGER = logging.getLogger(__name__)
+
+
+class BrowserStartupError(RuntimeError):
+    """Raised when the local browser required by Playwright cannot start."""
 
 
 class ChatGPTController:
@@ -38,6 +50,23 @@ class ChatGPTController:
         BROWSER_USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
         LOGGER.info("Browser starting with persistent context: %s", BROWSER_USER_DATA_DIR)
         self._playwright = await async_playwright().start()
+        launch_options = {
+            "user_data_dir": str(BROWSER_USER_DATA_DIR),
+            "headless": HEADLESS,
+            "args": ["--start-maximized"],
+        }
+        if BROWSER_CHANNEL:
+            launch_options["channel"] = BROWSER_CHANNEL
+
+        try:
+            self._context = await self._playwright.chromium.launch_persistent_context(
+                **launch_options
+            )
+        except Error as exc:
+            LOGGER.exception("Browser startup failed")
+            await self._cleanup_after_failed_start()
+            raise BrowserStartupError(self._browser_startup_help(exc)) from exc
+
         self._context = await self._playwright.chromium.launch_persistent_context(
             user_data_dir=str(BROWSER_USER_DATA_DIR),
             channel="chrome",
@@ -47,6 +76,37 @@ class ChatGPTController:
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
         await self._page.goto(CHATGPT_URL, wait_until="domcontentloaded")
         LOGGER.info("Browser started")
+
+    async def _cleanup_after_failed_start(self) -> None:
+        """Reset partially initialized Playwright resources after startup failure."""
+        if self._context:
+            await self._context.close()
+        if self._playwright:
+            await self._playwright.stop()
+        self._context = None
+        self._page = None
+        self._playwright = None
+
+    def _browser_startup_help(self, exc: Error) -> str:
+        """Return a safe, actionable browser startup message for the UI."""
+        detail = str(exc)
+        if "Chromium distribution 'chrome' is not found" in detail:
+            return (
+                "找不到 Google Chrome。請在 Windows 本機安裝 Google Chrome，"
+                "或執行 `playwright install chrome`。如果部署在 Streamlit Cloud/Linux，"
+                "請改用本機 Windows 執行，或設定 `CHATGPT_BROWSER_CHANNEL=` 並安裝 Playwright Chromium。"
+            )
+        if "Executable doesn't exist" in detail:
+            return (
+                "找不到 Playwright 瀏覽器執行檔，"
+                "請執行 `playwright install chromium` 或 `playwright install chrome`。"
+            )
+        if "host system is missing dependencies" in detail.lower():
+            return (
+                "目前環境缺少瀏覽器系統相依套件；"
+                "請在 Windows 本機執行，或安裝 Playwright 所需系統套件。"
+            )
+        return f"瀏覽器啟動失敗：{detail}"
 
     async def close_browser(self) -> None:
         """Close Playwright resources. Session files remain on disk."""
